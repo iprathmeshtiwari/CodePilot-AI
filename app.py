@@ -1,20 +1,28 @@
-import hashlib
+
 import os
-import secrets
-import sqlite3
-import uuid
 import streamlit as st
 from dotenv import load_dotenv
-from openai import OpenAI
 
 load_dotenv()
 
-st.set_page_config(
-    page_title="CodePilot AI",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
+api_key = st.secrets.get(
+    "NEBIUS_API_KEY", os.getenv("NEBIUS_API_KEY", "")
 )
+model = st.secrets.get(
+    "NEBIUS_MODEL", os.getenv("NEBIUS_MODEL", "")
+)
+base_url = st.secrets.get(
+    "NEBIUS_BASE_URL",
+    os.getenv(
+        "NEBIUS_BASE_URL",
+        "https://api.tokenfactory.us-central1.nebius.com/v1/"
+    )
+)
+
+if not api_key or not model:
+    st.error("Nebius settings missing. Configure your app secrets.")
+    st.stop()
+
 
 # ===================== DATABASE AUTH SYSTEM =====================
 
