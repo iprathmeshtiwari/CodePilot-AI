@@ -339,39 +339,69 @@ if "username" not in st.session_state:
 # ===================== GLOBAL MODERN STYLING =====================
 
 def inject_app_styles(sidebar_open: bool):
-    """Injects responsive dark-navy theme and manual sidebar controls."""
+    """Injects the dark-navy theme.
+
+    SIDEBAR DESIGN: `st.session_state.sidebar_open` is the ONLY source of truth.
+    Streamlit's own collapse/expand controls are hidden and its collapse transform is
+    neutralised, so the real <section data-testid="stSidebar"> is shown/hidden purely
+    from Python state on every rerun (no one-shot JavaScript, no second state machine).
+    """
+    display = "block" if sidebar_open else "none"
+    content_max = "1000px" if sidebar_open else "1240px"
+
     sidebar_css = f"""
-    /* DESKTOP SIDEBAR BEHAVIOR */
+    /* REAL SIDEBAR: visibility is driven only by Python state.
+       transform/margin/visibility resets stop Streamlit's native "collapsed" state
+       from pushing the sidebar off-canvas while we show it. */
+    [data-testid="stSidebar"] {{
+        display: {display} !important;
+        transform: none !important;
+        margin-left: 0 !important;
+        visibility: visible !important;
+        background: linear-gradient(180deg, #0b1122 0%, #060913 100%) !important;
+        border-right: 1px solid #1a2742 !important;
+    }}
+
+    /* DESKTOP / TABLET (>= 769px): sidebar sits in the flex layout; when closed it is
+       display:none so the main area reclaims the full width. */
     @media (min-width: 769px) {{
         [data-testid="stSidebar"] {{
-            display: {"block" if sidebar_open else "none"} !important;
+            position: relative !important;
+            flex: 0 0 320px !important;
             width: 320px !important;
             min-width: 320px !important;
             max-width: 320px !important;
-            background: linear-gradient(180deg, #0b1122 0%, #060913 100%) !important;
-            border-right: 1px solid #1a2742 !important;
-            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s ease !important;
             z-index: 99 !important;
         }}
         .block-container {{
-            max-width: {"1000px" if sidebar_open else "1240px"} !important;
+            max-width: {content_max} !important;
             margin: 0 auto !important;
-            padding: 1.25rem 2rem 5rem !important;
-            transition: max-width 0.25s ease !important;
+            padding: 4.25rem 2rem 5rem !important;
+        }}
+        [data-testid="stBottomBlockContainer"] {{
+            max-width: {content_max} !important;
+            margin: 0 auto !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
+        }}
+        /* Backdrop and in-sidebar close button are mobile-only */
+        .st-key-sidebar_backdrop, .st-key-sidebar_close_btn {{
+            display: none !important;
         }}
     }}
 
-    /* TABLET & MOBILE OVERLAY SIDEBAR BEHAVIOR */
+    /* MOBILE (<= 768px): sidebar is a fixed overlay above a clickable backdrop. */
     @media (max-width: 768px) {{
         [data-testid="stSidebar"] {{
-            display: {"block" if sidebar_open else "none"} !important;
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             bottom: 0 !important;
             width: 82vw !important;
+            min-width: 0 !important;
             max-width: 320px !important;
             height: 100vh !important;
+            height: 100dvh !important;
             z-index: 999999 !important;
             background: #090e1d !important;
             border-right: 1px solid #233555 !important;
@@ -380,7 +410,47 @@ def inject_app_styles(sidebar_open: bool):
         }}
         .block-container {{
             max-width: 100% !important;
-            padding: 1rem 1rem 5rem !important;
+            padding: 4.25rem 1rem 5rem !important;
+        }}
+        [data-testid="stBottomBlockContainer"] {{
+            max-width: 100% !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }}
+        .st-key-sidebar_close_btn {{
+            display: block !important;
+        }}
+        /* Full-screen backdrop is a REAL Streamlit button (rendered only while open) */
+        .st-key-sidebar_backdrop {{
+            display: block !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 999998 !important;
+            background: rgba(2, 6, 16, 0.7) !important;
+        }}
+        .st-key-sidebar_backdrop [data-testid="stButton"],
+        .st-key-sidebar_backdrop .stButton {{
+            width: 100% !important;
+            height: 100% !important;
+        }}
+        .st-key-sidebar_backdrop button,
+        .st-key-sidebar_backdrop button:hover,
+        .st-key-sidebar_backdrop button:active {{
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 100% !important;
+            opacity: 0 !important;
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            transform: none !important;
+            cursor: pointer !important;
         }}
     }}
     """
@@ -415,16 +485,55 @@ def inject_app_styles(sidebar_open: bool):
         overflow-x: hidden !important;
     }}
 
-    /* HIDE DEFAULT STREAMLIT HEADER CONTROLS IN FAVOR OF CUSTOM TOPBAR */
+    /* Streamlit's fixed header stays transparent; page content is padded below it
+       (see .block-container padding-top) so it can never cover the hamburger button. */
     [data-testid="stHeader"] {{
         background: transparent !important;
         z-index: 10 !important;
     }}
-    [data-testid="stSidebarCollapsedControl"] {{
+
+    /* Hide EVERY native sidebar collapse/expand control (names vary by Streamlit
+       version). The hamburger in the top bar is the only toggle. */
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stExpandSidebarButton"],
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"] {{
         display: none !important;
     }}
 
     {sidebar_css}
+
+    /* TOP BAR: one row at every width, hamburger always visible */
+    .st-key-topbar [data-testid="stHorizontalBlock"] {{
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }}
+    .st-key-topbar [data-testid="stHorizontalBlock"] > div:nth-child(1) {{
+        flex: 0 0 52px !important;
+        width: 52px !important;
+        min-width: 52px !important;
+    }}
+    .st-key-topbar [data-testid="stHorizontalBlock"] > div:nth-child(2) {{
+        flex: 1 1 0 !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }}
+    .st-key-topbar [data-testid="stHorizontalBlock"] > div:nth-child(3),
+    .st-key-topbar [data-testid="stHorizontalBlock"] > div:nth-child(4) {{
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }}
+    .st-key-topbar button {{
+        padding: 6px 10px !important;
+        white-space: nowrap !important;
+    }}
+    @media (max-width: 640px) {{
+        .st-key-topbar [data-testid="stHorizontalBlock"] > div:nth-child(3) {{
+            display: none !important;
+        }}
+    }}
 
     /* GLOBAL TYPOGRAPHY */
     p, span, label, div {{
@@ -806,14 +915,15 @@ current_user = st.session_state.username
 user_chat_store = f"chats_{current_user}"
 user_active_chat = f"active_chat_{current_user}"
 
-# Load user preferences from DB on session start
-if "prefs_loaded" not in st.session_state:
+# Load user preferences from DB once PER USER (not once per browser session), so a
+# different account signing in on the same session gets its own sidebar state.
+if st.session_state.get("prefs_loaded_for") != current_user:
     prefs = get_user_preferences(current_user)
     st.session_state.sidebar_open = prefs["sidebar_open"]
     st.session_state.active_mode = prefs["active_mode"]
     st.session_state.temperature = prefs["temperature"]
     st.session_state.stream_mode = prefs["stream_mode"]
-    st.session_state.prefs_loaded = True
+    st.session_state.prefs_loaded_for = current_user
 
 # Load onboarding state
 if f"onboarded_{current_user}" not in st.session_state:
@@ -861,22 +971,44 @@ def create_new_chat():
     save_chat_to_db(current_user, new_id, "New Chat")
     st.session_state[user_active_chat] = new_id
 
-# Apply styling based on current manual sidebar state
+
+# ---- Sidebar state callbacks -------------------------------------------------
+# Callbacks run BEFORE the script reruns, so the new state is already in place when
+# the CSS is generated below. They read the username from session_state (not from a
+# module-level variable) because callbacks execute before the script body.
+def set_sidebar_open(value: bool):
+    st.session_state.sidebar_open = bool(value)
+    save_user_preference(st.session_state.username, "sidebar_open", int(bool(value)))
+
+
+def toggle_sidebar():
+    set_sidebar_open(not st.session_state.sidebar_open)
+
+
+# Apply styling based on current sidebar state
 inject_app_styles(st.session_state.sidebar_open)
 
-# JavaScript for Escape Key listener and mobile backdrop click
+# Escape-key support. Re-runs safely: on every load it REMOVES the previously bound
+# handler from the parent document and binds a fresh one, so there are never duplicate
+# or stale listeners. The handler looks up the live Streamlit "close" button at key-press
+# time (nothing is cached across reruns) and only acts while the sidebar is open
+# (the backdrop button exists in the DOM only while open).
 components.html("""
 <script>
-const doc = window.parent.document;
-if (!window._codepilot_esc_bound) {
-    window._codepilot_esc_bound = true;
-    doc.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const closeBtn = doc.getElementById('sidebar_close_btn_dom') || doc.querySelector('[data-testid="stSidebar"] button');
-            if (closeBtn) closeBtn.click();
-        }
-    });
-}
+(function () {
+    const win = window.parent;
+    const doc = win.document;
+    if (win.__codepilotEscHandler) {
+        doc.removeEventListener('keydown', win.__codepilotEscHandler);
+    }
+    win.__codepilotEscHandler = function (e) {
+        if (e.key !== 'Escape') return;
+        if (!doc.querySelector('.st-key-sidebar_backdrop')) return;   // sidebar not open
+        const btn = doc.querySelector('.st-key-sidebar_close_btn button');
+        if (btn) btn.click();
+    };
+    doc.addEventListener('keydown', win.__codepilotEscHandler);
+})();
 </script>
 """, height=0)
 
@@ -943,7 +1075,8 @@ def send_prompt(prompt_text: str):
 # ===================== SIDEBAR VIEW =====================
 
 with st.sidebar:
-    # Sidebar Header with manual Close button
+    # Sidebar Header with Close button (shown on mobile only; the hamburger is the
+    # single toggle everywhere else). Same state setter as the hamburger.
     head_left, head_right = st.columns([4, 1])
     with head_left:
         st.markdown(
@@ -954,10 +1087,13 @@ with st.sidebar:
             unsafe_allow_html=True
         )
     with head_right:
-        if st.button("✕", key="sidebar_close_btn", help="Close Sidebar (Esc)"):
-            st.session_state.sidebar_open = False
-            save_user_preference(current_user, "sidebar_open", 0)
-            st.rerun()
+        st.button(
+            "✕",
+            key="sidebar_close_btn",
+            help="Close Sidebar (Esc)",
+            on_click=set_sidebar_open,
+            args=(False,),
+        )
 
     # New Chat Button
     if st.button("＋   New Conversation", key="new_chat_btn", use_container_width=True):
@@ -1055,7 +1191,8 @@ with st.sidebar:
     with st.expander("❔ Keyboard & Help"):
         st.caption("• **Enter**: Send message")
         st.caption("• **Shift + Enter**: New line")
-        st.caption("• **Esc**: Toggle / Close Sidebar")
+        st.caption("• **Esc**: Close sidebar")
+        st.caption("• **☰** (top bar): Open / close sidebar")
         st.caption("• Code blocks include built-in one-click copy.")
 
     st.divider()
@@ -1080,42 +1217,58 @@ with st.sidebar:
         st.rerun()
 
 
+# ===================== MOBILE BACKDROP =====================
+# A real Streamlit button, rendered only while the sidebar is open. CSS makes it a
+# full-screen invisible click target on mobile and hides it on desktop.
+if st.session_state.sidebar_open:
+    st.button(
+        "Close sidebar",
+        key="sidebar_backdrop",
+        help="Close sidebar",
+        on_click=set_sidebar_open,
+        args=(False,),
+    )
+
+
 # ===================== TOP NAVIGATION BAR =====================
 
-top_c1, top_c2, top_c3, top_c4 = st.columns([1, 4, 2, 1])
+with st.container(key="topbar"):
+    top_c1, top_c2, top_c3, top_c4 = st.columns([1, 4, 2, 1])
 
-with top_c1:
-    sidebar_toggle_label = "⇤" if st.session_state.sidebar_open else "☰"
-    sidebar_toggle_help = "Collapse Sidebar (Esc)" if st.session_state.sidebar_open else "Open Sidebar (Esc)"
-    if st.button(sidebar_toggle_label, key="navbar_sidebar_toggle", help=sidebar_toggle_help):
-        st.session_state.sidebar_open = not st.session_state.sidebar_open
-        save_user_preference(current_user, "sidebar_open", int(st.session_state.sidebar_open))
-        st.rerun()
+    with top_c1:
+        # The ONE sidebar toggle. It lives in the main area, so it is visible whether
+        # the sidebar is open or closed.
+        st.button(
+            "☰",
+            key="navbar_sidebar_toggle",
+            help="Close sidebar" if st.session_state.sidebar_open else "Open sidebar",
+            on_click=toggle_sidebar,
+        )
 
-with top_c2:
-    active_chat_obj = st.session_state[user_chat_store][st.session_state[user_active_chat]]
-    st.markdown(
-        f'<div style="display: flex; align-items: center; gap: 10px; height: 44px;">'
-        f'<span style="font-weight: 700; color: #ffffff; font-size: 15px;">🤖 CodePilot AI</span>'
-        f'<span style="color: #4b638a;">/</span>'
-        f'<span style="color: #a5b8d8; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">{active_chat_obj["title"]}</span>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
+    with top_c2:
+        active_chat_obj = st.session_state[user_chat_store][st.session_state[user_active_chat]]
+        st.markdown(
+            f'<div style="display: flex; align-items: center; gap: 10px; height: 44px;">'
+            f'<span style="font-weight: 700; color: #ffffff; font-size: 15px;">🤖 CodePilot AI</span>'
+            f'<span style="color: #4b638a;">/</span>'
+            f'<span style="color: #a5b8d8; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">{active_chat_obj["title"]}</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
-with top_c3:
-    st.markdown(
-        f'<div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 44px;">'
-        f'<span class="mode-badge">{st.session_state.active_mode}</span>'
-        f'<span class="status-badge">🟢 Nebius AI</span>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
+    with top_c3:
+        st.markdown(
+            f'<div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 44px;">'
+            f'<span class="mode-badge">{st.session_state.active_mode}</span>'
+            f'<span class="status-badge">🟢 Nebius AI</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
-with top_c4:
-    if st.button("＋ New", key="navbar_new_chat", help="Start New Chat", use_container_width=True):
-        create_new_chat()
-        st.rerun()
+    with top_c4:
+        if st.button("＋ New", key="navbar_new_chat", help="Start New Chat", use_container_width=True):
+            create_new_chat()
+            st.rerun()
 
 
 # ===================== MAIN CHAT & ONBOARDING AREA =====================
